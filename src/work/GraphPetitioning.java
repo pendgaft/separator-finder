@@ -16,13 +16,22 @@ import graph.Vertex;
 
 public class GraphPetitioning {
 
+	/** store initial wardens */
 	private Set<Vertex> wardenSet;
+	/** store the extending vertexes that are adjacent to wardens, which would become separators */
 	private List<Vertex> wardenAdjacentSet;
+	/** store vertexes that must be in opposite side */
 	private Set<Vertex> oppositeSet;
+	/** store the extending vertexes of the opposite side, might include those will be in the opposite set */
 	private List<Vertex> oppositeExtendingSet;
+	/** store vertexes that are neither in warden side nor opposite side yet */
 	private HashMap<Integer, Vertex> neutralVertexMap;
+	/** store both separators and interior vertexes of the warden side, 
+	 * and the interior vertexes will be filtered */
 	private Set<Vertex> possibleSeparatorSet;
+	/** store real separators */
 	private Set<Vertex> separatorSet;
+	/** make sure if warden side and opposite side extend one and only one vertex each time */
 	private boolean oppositeAddedInThisTurn; 
 	
 	public GraphPetitioning() {
@@ -76,7 +85,7 @@ public class GraphPetitioning {
 					break;
 			}
 			this.oppositeAddedInThisTurn = false;
-			if (FindSeparator.TEST) {
+			if (Constants.DEBUG) {
 				System.out.println("******");
 			}
 		}
@@ -96,7 +105,7 @@ public class GraphPetitioning {
 		Random randomNext = new Random();
 		List<Vertex> extendibleAdjacentSet = new ArrayList<Vertex>();
 		while (true) {
-			/* cannot find any vertex to extend, petitioning finishes! */
+			/* if cannot find any vertex to extend, petitioning finishes! */
 			if (this.wardenAdjacentSet.isEmpty()) 
 				return 0;
 			
@@ -109,7 +118,7 @@ public class GraphPetitioning {
 				}
 			}
 			/* 
-			 * if the vertex is not extendible, move into separator set
+			 * if the vertex is not extendible, move into possible separator set
 			 * as potential possible separator. 
 			 */
 			if (extendibleAdjacentSet.isEmpty()) {
@@ -118,11 +127,15 @@ public class GraphPetitioning {
 				continue;
 			}
 			
+			/* 
+			 * there existing extendible vertexes, then randomly pick one from 
+			 * the possible neighbors to extend the extending set for next round.
+			 */
 			randomIndex = randomNext.nextInt(extendibleAdjacentSet.size());
 			Vertex extendedVertex = extendibleAdjacentSet.get(randomIndex);
 			this.wardenAdjacentSet.add(extendedVertex);
 			this.neutralVertexMap.remove(extendedVertex.getVertexID());
-			if (FindSeparator.TEST) {
+			if (Constants.DEBUG) {
 				System.out.println("warden set added: " + extendedVertex.getVertexID());
 			}
 			break;
@@ -138,15 +151,15 @@ public class GraphPetitioning {
 	 * opposite set.
 	 * @return
 	 */
-	private int randomExtendOppositeAdjacent() {
+	private void randomExtendOppositeAdjacent() {
 		
 		int randomIndex;
 		Random randomNext = new Random();
 		List<Vertex> extendibleAdjacentSet = new ArrayList<Vertex>();
 		while (true) {
-			/* cannot find any vertex to extend, petitioning finishes! */
+			/* if cannot find any vertex to extend, petitioning finishes! */
 			if (this.oppositeExtendingSet.isEmpty()) 
-				return 0;
+				break;
 			
 			randomIndex = randomNext.nextInt(this.oppositeExtendingSet.size());
 			Vertex relaxedVertex = this.oppositeExtendingSet.get(randomIndex);
@@ -157,8 +170,8 @@ public class GraphPetitioning {
 				}
 			}
 			/* 
-			 * if the vertex is not extendible, move into separator set
-			 * as potential possible separator. 
+			 * if the vertex is not extendible, move into opposite set
+			 * as opposite vertexes that will not be searched again. 
 			 */
 			if (extendibleAdjacentSet.isEmpty()) {
 				this.oppositeSet.add(relaxedVertex);
@@ -166,17 +179,20 @@ public class GraphPetitioning {
 				continue;
 			}
 			
+			/* 
+			 * there existing extendible vertexes, then randomly pick one from 
+			 * the possible neighbors to extend the extending set for next round.
+			 */
 			randomIndex = randomNext.nextInt(extendibleAdjacentSet.size());
 			Vertex extendedVertex = extendibleAdjacentSet.get(randomIndex);
 			this.oppositeExtendingSet.add(extendedVertex);
 			this.neutralVertexMap.remove(extendedVertex.getVertexID());
-			if (FindSeparator.TEST) {
+			if (Constants.DEBUG) {
 				System.out.println("opposite set added: " + extendedVertex.getVertexID());
 			}
 			this.oppositeAddedInThisTurn = true;
 			break;
 		}
-		return this.oppositeExtendingSet.size();
 	}
 	
 	/**
@@ -246,6 +262,9 @@ public class GraphPetitioning {
 	/** 
 	 * select a random vertex from neutral vertex set,
 	 * and put it into the opposite extending set for a new round.
+	 * 
+	 * @return -1 if cannot find any vertex to extend for the next round
+	 * 			1 if randomly find a vertex to extend for the next round
 	 */
 	private int randomSelectNextSeed() {
 		/* random select a seed for the next round */
@@ -260,11 +279,11 @@ public class GraphPetitioning {
 		this.oppositeExtendingSet.add(this.neutralVertexMap.get(randomVertex));
 		this.oppositeSet.add(this.neutralVertexMap.get(randomVertex));
 		this.neutralVertexMap.remove(randomVertex);
-		if (FindSeparator.TEST) {
+		if (Constants.DEBUG) {
 			System.out.println("opposite RANDOM select " + randomVertex);
 		}
 		
-		return 0;		
+		return 1;
 	}
 	
 	/**
@@ -347,7 +366,7 @@ public class GraphPetitioning {
 	private void showResult() {
 		System.out.println("The number of the separator is " + this.separatorSet.size());
 		
-		if (FindSeparator.TEST) {
+		if (Constants.DEBUG) {
 			System.out.println("separators: ");
 			for (Vertex vertex : this.separatorSet)
 				System.out.print(vertex.getVertexID() + ", ");
