@@ -32,8 +32,11 @@ public class GraphPartitioning {
 	/** store real separators */
 	private Set<Vertex> separatorSet;
 	/** make sure if warden side and opposite side extend one and only one vertex each time */
-	private boolean oppositeExtendedInThisTurn; 
-	private BufferedWriter Out;
+	private boolean oppositeExtendedInThisTurn;
+	/** write the number of separators into a file */
+	private BufferedWriter separatorOut;
+	/** write the number of wardens in the warden set into a file */
+	private BufferedWriter wardenOut;
 	Random randomNext;
 	
 	public GraphPartitioning() throws IOException {
@@ -48,10 +51,12 @@ public class GraphPartitioning {
 		this.randomNext = new Random();
 	}
 	
-	public void Run(String asRelFile, String wardenFile, int trials) throws IOException {
+	public void mutitpleRuns(String asRelFile, String wardenFile, int trials) throws IOException {
 		
-		this.Out = new BufferedWriter(new FileWriter(Constants.OUTPUT_FILE + "-" + wardenFile));
-		//this.Out = new BufferedWriter(new FileWriter("tmp.txt"));
+		this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
+		this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
+		//this.separatorOut = new BufferedWriter(new FileWriter("tmp1.txt"));
+		//this.wardenOut = new BufferedWriter(new FileWriter("tmp2.txt"));
 		this.generateGraph(asRelFile, wardenFile);
 		HashMap<Integer, Vertex> tempMap = new HashMap<Integer, Vertex>();
 		for (int key: this.neutralVertexMap.keySet()) {
@@ -67,9 +72,26 @@ public class GraphPartitioning {
 			this.randomRandomPartitioning();
 			this.printResults();
 		}
-		this.Out.close();
+		this.separatorOut.close();
+		this.wardenOut.close();
 	}
-	
+
+		public void singleRun(String asRelFile, String wardenFile) throws IOException {
+		
+		this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
+		this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
+		//this.separatorOut = new BufferedWriter(new FileWriter("tmp1.txt"));
+		//this.wardenOut = new BufferedWriter(new FileWriter("tmp2.txt"));
+		this.generateGraph(asRelFile, wardenFile);		
+		this.wardenBlack.addAll(this.wardenSet);
+		
+		this.randomRandomPartitioning();
+		this.printResults();
+		
+		this.separatorOut.close();
+		this.wardenOut.close();
+	}
+		
 	private void reset(HashMap<Integer, Vertex> neutralVertexMap) {
 		if (Constants.DEBUG) {
 			System.out.println(this.wardenSet.size() + ", " + this.oppositeBlack.size() + ", " 
@@ -133,6 +155,7 @@ public class GraphPartitioning {
 		}
 		
 		this.checkWardenGray();
+		this.filterSeparatorSet();
 	}
 
 	/**
@@ -253,6 +276,34 @@ public class GraphPartitioning {
 	}
 	
 	/**
+	 * remove the separator that only connects to other separators 
+	 * and opposite vertexes.
+	 */
+	private void filterSeparatorSet() {
+		Set<Vertex> removedSeparator = new HashSet<Vertex>();
+		for (Vertex vertex : this.separatorSet) {
+			boolean toRemove = true;
+			for (Vertex neighbor : vertex.getAllNeighbors()) {
+				/*
+				 * if connect to a vertex that is not in separator set or opposite (extending) set
+				 * then it is a real separator, and don't put into removedSeparator set
+				 */
+				if (!(this.separatorSet.contains(neighbor) || this.oppositeGray.contains(neighbor)
+						|| this.oppositeBlack.contains(neighbor))) {
+					toRemove = false;
+					break;
+				}				
+			}
+			if (toRemove) {
+				removedSeparator.add(vertex);
+			}
+		}
+		if (!removedSeparator.isEmpty()) {
+			this.separatorSet.removeAll(removedSeparator);
+		}
+	}
+	
+	/**
 	 * create an adjacent set for the initial warden set, using which to 
 	 * start the algorithm.
 	 */
@@ -283,7 +334,6 @@ public class GraphPartitioning {
 		int randomIndex = this.randomNext.nextInt(keyArray.length);
 		int randomVertex = (Integer)keyArray[randomIndex];
 		this.oppositeGray.add(this.neutralVertexMap.get(randomVertex));
-		this.oppositeBlack.add(this.neutralVertexMap.get(randomVertex));
 		this.neutralVertexMap.remove(randomVertex);
 		if (Constants.DEBUG) {
 			System.out.println("opposite RANDOM select " + randomVertex);
@@ -353,7 +403,9 @@ public class GraphPartitioning {
 			this.neutralVertexMap.get(rhsASN).addNeighbor(this.neutralVertexMap.get(lhsASN));
 		}
 		fBuff.close();
-		
+		if (Constants.DEBUG) {
+			System.out.println(this.neutralVertexMap.size());
+		}
 		/*
 		 * read the warden AS file, add wardens into warden set
 		 */
@@ -378,7 +430,8 @@ public class GraphPartitioning {
 	
 	private void printResults() throws IOException {
 		
-		this.Out.write(this.separatorSet.size()+"\n");
+		this.separatorOut.write(this.separatorSet.size()+"\n");
+		this.wardenOut.write(this.wardenBlack.size()+"\n");
 		if (Constants.DEBUG) {
 			System.out.println("\n###Separators:");
 			for (Vertex v : this.separatorSet) {
