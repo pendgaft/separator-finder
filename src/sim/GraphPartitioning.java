@@ -427,6 +427,20 @@ public class GraphPartitioning {
 	public int getSeparatorSize() {
 		return this.separatorSet.size();
 	}
+	/**
+	 * fetch the whole wardens in the warden shore after the algorithm
+	 * @return
+	 */
+	public List<Vertex> getWardenSet() {
+		return this.wardenBlack;
+	}
+	/**
+	 * fetch the initial wardens
+	 * @return
+	 */
+	public Set<Vertex> getInitialWardens() {
+		return this.wardenSet;
+	}
 	
 	private void printResults() throws IOException {
 		
