@@ -6,17 +6,22 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.Stack;
 import java.util.StringTokenizer;
 
 import graph.Vertex;
 
 public class GraphPartitioning {
 
+	private static final String RAND_MODE = "random";
+	private static final String DFS_MODE = "dfs";
+	
 	/** store initial wardens */
 	private Set<Vertex> wardenSet;
 	/** store vertexes that must be in warden side */
@@ -31,13 +36,17 @@ public class GraphPartitioning {
 	private HashMap<Integer, Vertex> neutralVertexMap;
 	/** store real separators */
 	private Set<Vertex> separatorSet;
-	/** make sure if warden side and opposite side extend one and only one vertex each time */
-	private boolean oppositeExtendedInThisTurn;
 	/** write the number of separators into a file */
 	private BufferedWriter separatorOut;
 	/** write the number of wardens in the warden set into a file */
 	private BufferedWriter wardenOut;
 	Random randomNext;
+	
+	private Stack<Vertex> wardenStack;
+	private Stack<Vertex> oppositeStack;
+	
+	private String wardenMode;
+	private String oppositeMode;
 	
 	public GraphPartitioning() throws IOException {
 		this.wardenSet = new HashSet<Vertex>();
@@ -49,45 +58,68 @@ public class GraphPartitioning {
 		this.separatorSet = new HashSet<Vertex>();
 		
 		this.randomNext = new Random();
+		
+		this.wardenStack = new Stack<Vertex>();
+		this.oppositeStack = new Stack<Vertex>();
 	}
 	
-	public void mutitpleRuns(String asRelFile, String wardenFile, int trials) throws IOException {
+	public void multipleRuns(String wardenFile, String wardenMode, String oppositeMode, int trials) throws IOException {
+		this.wardenMode = wardenMode;
+		this.oppositeMode = oppositeMode;
+		//this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
+		//this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
+		this.separatorOut = new BufferedWriter(new FileWriter("multiSeparatorCnt.txt"));
+		this.wardenOut = new BufferedWriter(new FileWriter("multiSeparatorCnt.txt"));
 		
-		this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
-		this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
-		//this.separatorOut = new BufferedWriter(new FileWriter("tmp1.txt"));
-		//this.wardenOut = new BufferedWriter(new FileWriter("tmp2.txt"));
-		this.generateGraph(asRelFile, wardenFile);
+		this.generateGraph(wardenFile);
 		HashMap<Integer, Vertex> tempMap = new HashMap<Integer, Vertex>();
 		for (int key: this.neutralVertexMap.keySet()) {
 			tempMap.put(key, this.neutralVertexMap.get(key));
 		}
 		
-		for (int i = 0; i < trials; ++i) {
+		for (int i = 0; i < 10; ++i) {
 			if (i % (trials/10) == 0) {
-				System.out.println(100*i/trials + "% done!");
-				
+				System.out.println(100*i/trials + "% done!");				
 			}
 			this.reset(tempMap);
-			this.randomRandomPartitioning();
+			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)
+					&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)) {
+				this.randomRandomPartitioning();
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)
+					&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				this.DFSDFSPartitioning();
+			} else {
+				/* under construction.. */
+			}
 			this.printResults();
 		}
 		this.separatorOut.close();
 		this.wardenOut.close();
 	}
-
-		public void singleRun(String asRelFile, String wardenFile) throws IOException {
+	
+	public void singleRun(String wardenFile, String wardenMode, String oppositeMode) throws IOException {
 		
+		this.wardenMode = wardenMode;
+		this.oppositeMode = oppositeMode;
 		this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
 		this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
 		//this.separatorOut = new BufferedWriter(new FileWriter("tmp1.txt"));
 		//this.wardenOut = new BufferedWriter(new FileWriter("tmp2.txt"));
-		this.generateGraph(asRelFile, wardenFile);		
-		this.wardenBlack.addAll(this.wardenSet);
+		this.generateGraph(wardenFile);
 		
-		this.randomRandomPartitioning();
+		if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)
+				&& this.wardenMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)) {
+			this.randomRandomPartitioning();
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)
+				&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+			for (Vertex node : this.neutralVertexMap.values()) {
+				node.createAvailableNeighborList();
+			}
+			this.DFSDFSPartitioning();
+		} else {
+			/* under construction.. */
+		}
 		this.printResults();
-		
 		this.separatorOut.close();
 		this.wardenOut.close();
 	}
@@ -104,11 +136,12 @@ public class GraphPartitioning {
 		this.oppositeGray.clear();
 		this.separatorSet.clear();
 		this.neutralVertexMap.clear();
-		for (Vertex warden : this.wardenSet) {
-			this.wardenBlack.add(warden);
-		}
+		
+		this.oppositeStack.clear();
 		for (int key : neutralVertexMap.keySet()) {
 			this.neutralVertexMap.put(key, neutralVertexMap.get(key));
+			/* available neighbor list is used for random dfs search */
+			this.neutralVertexMap.get(key).createAvailableNeighborList();
 		}
 	}
 	
@@ -121,34 +154,22 @@ public class GraphPartitioning {
 	 */
 	private void randomRandomPartitioning() {
 		this.createWardenAdjacentSet();
-		this.randomSelectNextSeed();
-		this.oppositeExtendedInThisTurn = true;
-		
-		while (true) {
+		boolean partitioningDone = false;
+		while (!partitioningDone) {
 
 			/* 
 			 * when there is no vertex to extend for warden gray set,
 			 * all possible separators are found. 
 			 */
-			if (randomExtendWardenGray())
-				break;
-			
-			if (!this.oppositeExtendedInThisTurn) {
-				randomExtendOppositeGray();
+			if (this.randomExtendWardenShore()) {
+				partitioningDone = true;
 			}
 			
-			/*
-			 * if a current search for opposite set cannot extend,
-			 * generate a new seed for another extend.
-			 * if no seed is available, all possible separators are found.
-			 */
-			if (!this.oppositeExtendedInThisTurn){
-				if (this.randomSelectNextSeed() == -1)
-					break;
-			}			
-			this.oppositeExtendedInThisTurn = false;
-
-
+			if (this.randomExtendOppositeShore()) {
+				if (this.randomSelectNextSeed() == -1) {
+					partitioningDone = true;
+				}
+			}
 			if (Constants.DEBUG) {
 				System.out.println("******");
 			}
@@ -165,32 +186,31 @@ public class GraphPartitioning {
 	 * @return 	true   if warden gray set is empty
 	 * 			false  if warden gray set is not empty
 	 */
-	private boolean randomExtendWardenGray() {
+	private boolean randomExtendWardenShore() {
 		int randomIndex, cntToBeGray;
-		boolean isSeparator, notFindNextWarden = true;
-		while (notFindNextWarden) {
+		boolean isSeparator, notFindNextNode = true;
+		while (notFindNextNode) {
 			/* if cannot find any vertex to extend, partitioning finishes! */
 			if (this.wardenGray.isEmpty()) 
 				return true;
 			
 			randomIndex = this.randomNext.nextInt(this.wardenGray.size());
-			Vertex relaxingVertex = this.wardenGray.get(randomIndex);
+			Vertex currentNode = this.wardenGray.get(randomIndex);
 			
 			cntToBeGray = 0;
 			isSeparator = false;
-			for (Vertex neighbor : relaxingVertex.getAllNeighbors()) {
+			for (Vertex nextNode : currentNode.getAllNeighbors()) {
 				/* if a node in gray set is adjacent to opposite , it is a separator */
-				if (this.oppositeGray.contains(neighbor) || this.oppositeBlack.contains(neighbor)) {
+				if (this.oppositeGray.contains(nextNode) || this.oppositeBlack.contains(nextNode)) {
 					isSeparator = true;
-					continue;
 				}
-				if (this.neutralVertexMap.containsKey(neighbor.getVertexID())) {
-					this.wardenGray.add(neighbor);
-					this.neutralVertexMap.remove(neighbor.getVertexID());
+				if (this.neutralVertexMap.containsKey(nextNode.getVertexID())) {
+					this.wardenGray.add(nextNode);
+					this.neutralVertexMap.remove(nextNode.getVertexID());
 					++cntToBeGray;
 					
 					if (Constants.DEBUG) {
-						System.out.println("warden set added: " + neighbor.getVertexID());
+						System.out.println("warden set added: " + nextNode.getVertexID());
 					}
 				}
 			}
@@ -202,16 +222,16 @@ public class GraphPartitioning {
 			 * 		if it is an interior node, keep finding, otherwise, stop and return
 			 */
 			if (isSeparator) {
-				this.separatorSet.add(relaxingVertex);
-				this.wardenGray.remove(relaxingVertex);
+				this.separatorSet.add(currentNode);
+				this.wardenGray.remove(currentNode);
 				if (cntToBeGray != 0) {
-					notFindNextWarden = false;
+					notFindNextNode = false;
 				}
 			} else if (cntToBeGray == 0) {
-				this.wardenBlack.add(relaxingVertex);
-				this.wardenGray.remove(relaxingVertex);
+				this.wardenBlack.add(currentNode);
+				this.wardenGray.remove(currentNode);
 			} else {
-				notFindNextWarden = false;
+				notFindNextNode = false;
 			}
 		}
 		return false;
@@ -225,43 +245,199 @@ public class GraphPartitioning {
 	 * opposite set.
 	 * @return
 	 */
-	private void randomExtendOppositeGray() {
+	private boolean randomExtendOppositeShore() {
 		
 		int randomIndex, cntToBeGray;
 		boolean notFindNextOpposite = true;
 		while (notFindNextOpposite) {
 			/* if cannot find any vertex to extend, petitioning finishes! */
 			if (this.oppositeGray.isEmpty()) 
-				break;
+				return true;
 			
 			randomIndex = this.randomNext.nextInt(this.oppositeGray.size());
-			Vertex relaxingVertex = this.oppositeGray.get(randomIndex);
+			Vertex currentNode = this.oppositeGray.get(randomIndex);
 			
 			cntToBeGray = 0;
-			for (Vertex vertexToBeGray : relaxingVertex.getAllNeighbors()) {
-				if (this.neutralVertexMap.containsKey(vertexToBeGray.getVertexID())) {
-					this.oppositeGray.add(vertexToBeGray);
-					this.neutralVertexMap.remove(vertexToBeGray.getVertexID());
+			for (Vertex nextNode : currentNode.getAllNeighbors()) {
+				if (this.neutralVertexMap.containsKey(nextNode.getVertexID())) {
+					this.oppositeGray.add(nextNode);
+					this.neutralVertexMap.remove(nextNode.getVertexID());
 					++cntToBeGray;
 					
 					if (Constants.DEBUG) {
-						System.out.println("opposit set added: " + vertexToBeGray.getVertexID());
+						System.out.println("opposit set added: " + nextNode.getVertexID());
 					}
 				}
 			}
 			if (cntToBeGray == 0) {
-				this.oppositeBlack.add(relaxingVertex);
-				this.oppositeGray.remove(relaxingVertex);
+				this.oppositeBlack.add(currentNode);
+				this.oppositeGray.remove(currentNode);
 				continue;
 			}
 			notFindNextOpposite = false;
-			this.oppositeExtendedInThisTurn = true;
 		}
+		return false;
+	}
+	
+	public void singleDFSRun(String asRelFile, String wardenFile) throws IOException {
+		
+		//this.separatorOut = new BufferedWriter(new FileWriter("DFSDFS_" + Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
+		//this.wardenOut = new BufferedWriter(new FileWriter("DFSDFS_" + Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
+		this.separatorOut = new BufferedWriter(new FileWriter("singleSeparatorCnt.txt"));
+		this.wardenOut = new BufferedWriter(new FileWriter("singleWardenCnt.txt"));
+		
+		this.generateGraph(wardenFile);
+		for (Vertex node : this.neutralVertexMap.values()) {
+			node.createAvailableNeighborList();
+		}
+		this.DFSDFSPartitioning();
+		this.printResults();
+		
+		this.separatorOut.close();
+		this.wardenOut.close();
+	}
+	
+	private void DFSDFSPartitioning() {
+		this.createWardenAdjacentSet();
+		boolean partitioningDone = false;
+		while (!partitioningDone) {
+			/* extend a node from warden shore */
+			if (this.randomDFSExtendWardenShore()) {
+				partitioningDone = true;
+			}
+			
+			/* extend a node from opposite shore */
+			if (this.randomDFSExtendOppositeShore()) {
+				if (this.randomSelectNextSeed() == -1) {
+					partitioningDone = true;
+				}					
+			}
+			
+			if (Constants.DEBUG) {
+				System.out.println("******");
+			}
+		}
+		this.filterSeparatorSet();
 	}
 	
 	/**
+	 * every time traverse to a same node again, it has to scan all its
+	 * neighbors. Not efficient, but this will avoid extra storage for 
+	 * the searching space and avoid reinitialize that storage for all
+	 * the nodes which might be expensive. A little tradeoff?? 
+	 * @return  true   if search is  finished.
+	 * 			false  if search is not finished.
+	 */
+	private boolean randomDFSExtendWardenShore() {		
+		boolean thisRoundDone = false;		
+		while (!thisRoundDone) {
+			/* when the stack is empty, partitioning is done. */
+			if (this.wardenStack.empty()) {
+				return true;
+			}
+			boolean currentSearchingSpaceEmpty = false;
+			Vertex nextNode = null;
+			Vertex currentNode = this.wardenStack.peek();
+			/* randomly select a neighbor for the next node */
+			do {
+				nextNode = currentNode.randomSelectANeighbor(this.randomNext);
+				if (nextNode == null) {
+					currentSearchingSpaceEmpty = true;
+					break;
+				}
+			} while (!this.neutralVertexMap.containsKey(nextNode.getVertexID()));
+						
+			/* 
+			 * if cannot extend from the current node, 
+			 * pop it out of the stack, and check the next 
+			 * node on the top of the stack 
+			 */
+			if (currentSearchingSpaceEmpty) {
+				this.wardenStack.pop();
+				/* check if current is a separator, and put it in the right place */
+				if (separatorCheck(currentNode)) {
+					this.separatorSet.add(currentNode);
+					
+					if (Constants.DEBUG) {
+						System.out.println("@dfs add separator " + currentNode.getVertexID());
+					}
+				} else {
+					this.wardenBlack.add(currentNode);
+				}
+			} else {
+				this.neutralVertexMap.remove(nextNode.getVertexID());
+				this.wardenStack.push(nextNode);
+				thisRoundDone = true;
+				
+				if (Constants.DEBUG) {
+					System.out.println("warden add " + nextNode.getVertexID());
+				}
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * @return  true 	if not successfully extend a next node, 
+	 * 					and need to randomly select a seed.
+	 * 		 	false	if successfully extend a next node,
+	 */
+	private boolean randomDFSExtendOppositeShore() {		
+		boolean thisRoundDone = false;
+		/* if the stack is empty, needs to select next random seed */
+		while (!thisRoundDone) {
+			if (this.oppositeStack.empty()) {
+				return true;
+			}
+			boolean currentSearchingSpaceEmpty = false;
+			Vertex nextNode = null;
+			Vertex currentNode = this.oppositeStack.peek();
+			/* randomly select a neighbor for the next node */
+			do {
+				nextNode = currentNode.randomSelectANeighbor(this.randomNext);
+				if (nextNode == null) {
+					currentSearchingSpaceEmpty = true;
+					break;
+				}
+			} while (!this.neutralVertexMap.containsKey(nextNode.getVertexID()));
+
+			if (currentSearchingSpaceEmpty) {
+				this.oppositeStack.pop();
+				this.oppositeBlack.add(currentNode);
+			} else {
+				this.neutralVertexMap.remove(nextNode.getVertexID());
+				this.oppositeStack.push(nextNode);
+				thisRoundDone = true;
+				if (Constants.DEBUG) {
+					System.out.println("opposite add " + nextNode.getVertexID());
+				}
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * pre assumption is that the given node is a part of warden set,
+	 * if one of its neighbor is in the opposite shore, it is a separator.
+	 * and return true. If none of its neighbor is, return false.
+	 * @param vertex
+	 * @return
+	 */
+	private boolean separatorCheck(Vertex vertex) {
+		for (Vertex neighbor : vertex.getAllNeighbors()) {
+			if (this.oppositeGray.contains(neighbor) || this.oppositeBlack.contains(neighbor) 
+					|| this.oppositeStack.contains(neighbor)) {
+				return true;
+			}
+		}
+		return false;
+	}
+		
+	/**
 	 * Select separators from warden gray set
 	 * which must not be adjacent to opposite gray or black   
+	 * 
+	 * for random - random search
 	 */
 	private void checkWardenGray() {
 		
@@ -278,6 +454,8 @@ public class GraphPartitioning {
 	/**
 	 * remove the separator that only connects to other separators 
 	 * and opposite vertexes.
+	 * 
+	 * for random - random search
 	 */
 	private void filterSeparatorSet() {
 		Set<Vertex> removedSeparator = new HashSet<Vertex>();
@@ -289,7 +467,7 @@ public class GraphPartitioning {
 				 * then it is a real separator, and don't put into removedSeparator set
 				 */
 				if (!(this.separatorSet.contains(neighbor) || this.oppositeGray.contains(neighbor)
-						|| this.oppositeBlack.contains(neighbor))) {
+						|| this.oppositeBlack.contains(neighbor) || this.oppositeStack.contains(neighbor))) {
 					toRemove = false;
 					break;
 				}				
@@ -306,16 +484,24 @@ public class GraphPartitioning {
 	/**
 	 * create an adjacent set for the initial warden set, using which to 
 	 * start the algorithm.
+	 * 
+	 * for both random - random search and DFS - DFS search
 	 */
 	private void createWardenAdjacentSet() {
 		for (Vertex wardenVertex : this.wardenSet) {
 			for (Vertex wardenNeighbor : wardenVertex.getAllNeighbors()) {
 				if (!this.wardenSet.contains(wardenNeighbor) && !this.wardenGray.contains(wardenNeighbor)) {
+					/* create avaiable neighbor list for dfs search */
+					wardenNeighbor.createAvailableNeighborList();
 					this.wardenGray.add(wardenNeighbor);
+					this.wardenStack.push(wardenNeighbor);
+					
 					this.neutralVertexMap.remove(wardenNeighbor.getVertexID());
 				}
 			}
 		}
+		/* randomize the warden stack */
+		Collections.shuffle(this.wardenStack);
 	}
 	
 	/** 
@@ -334,6 +520,9 @@ public class GraphPartitioning {
 		int randomIndex = this.randomNext.nextInt(keyArray.length);
 		int randomVertex = (Integer)keyArray[randomIndex];
 		this.oppositeGray.add(this.neutralVertexMap.get(randomVertex));
+		
+		this.oppositeStack.push(this.neutralVertexMap.get(randomVertex));
+		
 		this.neutralVertexMap.remove(randomVertex);
 		if (Constants.DEBUG) {
 			System.out.println("opposite RANDOM select " + randomVertex);
@@ -350,16 +539,17 @@ public class GraphPartitioning {
 	 * @param wardenFile
 	 * @throws IOException
 	 */
-	private void generateGraph(String asRelFile, String wardenFile)
+	private void generateGraph(String wardenFile)
 			throws IOException {
 
 		String pollString;
 		StringTokenizer pollToks;
 		int lhsASN, rhsASN, rel;
 
-		System.out.println(asRelFile);
-
-		BufferedReader fBuff = new BufferedReader(new FileReader(asRelFile));
+		//if (Constants.DEBUG) {
+			System.out.println("as file " + Constants.AS_REL_FILE);
+		//}
+		BufferedReader fBuff = new BufferedReader(new FileReader(Constants.AS_REL_FILE));
 		while (fBuff.ready()) {
 			pollString = fBuff.readLine().trim();
 			if (Constants.DEBUG) {
@@ -409,6 +599,7 @@ public class GraphPartitioning {
 		/*
 		 * read the warden AS file, add wardens into warden set
 		 */
+		System.out.println("wardenFile " + wardenFile);
 		fBuff = new BufferedReader(new FileReader(wardenFile));
 		while (fBuff.ready()) {
 			pollString = fBuff.readLine().trim();
@@ -427,25 +618,28 @@ public class GraphPartitioning {
 	public int getSeparatorSize() {
 		return this.separatorSet.size();
 	}
+	
 	/**
-	 * fetch the whole wardens in the warden shore after the algorithm
+	 * fetch only the wardens in the warden shore after the algorithm,
 	 * @return
 	 */
-	public List<Vertex> getWardenSet() {
-		return this.wardenBlack;
-	}
-	/**
-	 * fetch the initial wardens
-	 * @return
-	 */
-	public Set<Vertex> getInitialWardens() {
+	public Set<Vertex> getWardenSet() {
 		return this.wardenSet;
+	}
+	
+	/**
+	 * fetch the vertexes in the black warden set, wardens are not included
+	 * @return
+	 */
+	public List<Vertex> getBlackWardenSet() {
+		return this.wardenBlack;
 	}
 	
 	private void printResults() throws IOException {
 		
 		this.separatorOut.write(this.separatorSet.size()+"\n");
-		this.wardenOut.write(this.wardenBlack.size()+"\n");
+		this.wardenOut.write((this.wardenBlack.size() + this.wardenSet.size()) +"\n");
+		System.out.println(this.separatorSet.size() + ", " + this.wardenBlack.size());
 		if (Constants.DEBUG) {
 			System.out.println("\n###Separators:");
 			for (Vertex v : this.separatorSet) {
