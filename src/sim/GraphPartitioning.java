@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
@@ -69,7 +71,7 @@ public class GraphPartitioning {
 		//this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
 		//this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
 		this.separatorOut = new BufferedWriter(new FileWriter("multiSeparatorCnt.txt"));
-		this.wardenOut = new BufferedWriter(new FileWriter("multiSeparatorCnt.txt"));
+		this.wardenOut = new BufferedWriter(new FileWriter("multiWardenCnt.txt"));
 		
 		this.generateGraph(wardenFile);
 		HashMap<Integer, Vertex> tempMap = new HashMap<Integer, Vertex>();
@@ -77,7 +79,7 @@ public class GraphPartitioning {
 			tempMap.put(key, this.neutralVertexMap.get(key));
 		}
 		
-		for (int i = 0; i < 10; ++i) {
+		for (int i = 0; i < trials; ++i) {
 			if (i % (trials/10) == 0) {
 				System.out.println(100*i/trials + "% done!");				
 			}
@@ -92,6 +94,10 @@ public class GraphPartitioning {
 				/* under construction.. */
 			}
 			this.printResults();
+			if (!this.testSeparators()) {
+				return;
+			}
+			
 		}
 		this.separatorOut.close();
 		this.wardenOut.close();
@@ -635,11 +641,47 @@ public class GraphPartitioning {
 		return this.wardenBlack;
 	}
 	
+	/**
+	 * 
+	 * @return	true 	if the vertex separators pass the test
+	 * 			false	if there are bugs in the code..
+	 */
+	private boolean testSeparators() {
+		
+		Set<Vertex> visitedSet = new HashSet<Vertex>();
+		Queue<Vertex> testQueue = new LinkedList<Vertex>();
+		testQueue.add((Vertex) this.wardenSet.toArray()[0]);
+		while (!testQueue.isEmpty()) {
+			Vertex currentNode = testQueue.poll();
+			if (Constants.DEBUG) {
+				System.out.println("current node " + currentNode.getVertexID());
+			}
+			
+			for (Vertex nextNode : currentNode.getAllNeighbors()) {
+				if (Constants.DEBUG) {
+					System.out.println("nextNode node " + nextNode.getVertexID());
+				}
+				
+				if (visitedSet.contains(nextNode) || testQueue.contains(nextNode)
+						|| this.separatorSet.contains(nextNode)) {
+					/* do nothing*/
+				} else if (this.wardenBlack.contains(nextNode) || this.wardenSet.contains(nextNode)) {
+					testQueue.add(nextNode);
+				} else {
+					System.out.println("the algorithm is not correct!");
+					return false;
+				}
+			}
+			visitedSet.add(currentNode);
+		}
+		return true;
+	}
+	
 	private void printResults() throws IOException {
 		
 		this.separatorOut.write(this.separatorSet.size()+"\n");
 		this.wardenOut.write((this.wardenBlack.size() + this.wardenSet.size()) +"\n");
-		System.out.println(this.separatorSet.size() + ", " + this.wardenBlack.size());
+		//System.out.println(this.separatorSet.size() + ", " + this.wardenBlack.size());
 		if (Constants.DEBUG) {
 			System.out.println("\n###Separators:");
 			for (Vertex v : this.separatorSet) {
