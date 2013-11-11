@@ -116,10 +116,11 @@ public class GraphPartitioning {
 				
 			}
 			this.printResults();
-			if (!this.testSeparators()) {
-				return;
-			}
-			
+			if (Constants.TEST) {
+				if (!this.testSeparators()) {
+					return;
+				}
+			}			
 		}
 		this.separatorOut.close();
 		this.wardenOut.close();
