@@ -11,11 +11,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
 import java.util.StringTokenizer;
+
+import comparator.*;
 
 import graph.Vertex;
 
@@ -23,7 +26,9 @@ public class GraphPartitioning {
 
 	private static final String RAND_MODE = "random";
 	private static final String DFS_MODE = "dfs";
-	
+	private static final String BFS_MODE = "bfs";
+	private static final String INWARD_MODE = "inward";
+	private static final String OUTWARD_MODE = "outward";
 	/** store initial wardens */
 	private Set<Vertex> wardenSet;
 	/** store vertexes that must be in warden side */
@@ -46,6 +51,13 @@ public class GraphPartitioning {
 	
 	private Stack<Vertex> wardenStack;
 	private Stack<Vertex> oppositeStack;
+	private Queue<Vertex> wardenQueue;
+	private Queue<Vertex> oppositeQueue;
+	private PriorityQueue<Vertex> wardenInwardPriorityQueue;
+	private PriorityQueue<Vertex> oppositeInwardPriorityQueue;
+	private PriorityQueue<Vertex> wardenOutwardPriorityQueue;
+	private PriorityQueue<Vertex> oppositeOutwardPriorityQueue;
+	
 	
 	private String wardenMode;
 	private String oppositeMode;
@@ -63,6 +75,12 @@ public class GraphPartitioning {
 		
 		this.wardenStack = new Stack<Vertex>();
 		this.oppositeStack = new Stack<Vertex>();
+		this.wardenQueue = new LinkedList<Vertex>();
+		this.oppositeQueue = new LinkedList<Vertex>();
+		this.wardenInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardDegreeBasedCom());
+		this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardDegreeBasedCom());
+		this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
+		this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
 	}
 	
 	public void multipleRuns(String wardenFile, String wardenMode, String oppositeMode, int trials) throws IOException {
@@ -87,11 +105,15 @@ public class GraphPartitioning {
 			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)
 					&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.RAND_MODE)) {
 				this.randomRandomPartitioning();
-			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)
-					&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
-				this.DFSDFSPartitioning();
+			} else if ((this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE) || this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE))  
+					&& (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) || this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				this.searchingPartitioning();
+			} else if ((this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE) || this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE))  
+					&& (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) || this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				this.degreeBasedPartitioning();
 			} else {
 				/* under construction.. */
+				
 			}
 			this.printResults();
 			if (!this.testSeparators()) {
@@ -121,7 +143,7 @@ public class GraphPartitioning {
 			for (Vertex node : this.neutralVertexMap.values()) {
 				node.createAvailableNeighborList();
 			}
-			this.DFSDFSPartitioning();
+			this.searchingPartitioning();
 		} else {
 			/* under construction.. */
 		}
@@ -144,12 +166,76 @@ public class GraphPartitioning {
 		this.neutralVertexMap.clear();
 		
 		this.oppositeStack.clear();
+		this.oppositeQueue.clear();
+		
+		this.wardenInwardPriorityQueue.clear();
+		this.wardenOutwardPriorityQueue.clear();
+		this.oppositeInwardPriorityQueue.clear();
+		this.oppositeOutwardPriorityQueue.clear();
 		for (int key : neutralVertexMap.keySet()) {
 			this.neutralVertexMap.put(key, neutralVertexMap.get(key));
 			/* available neighbor list is used for random dfs search */
 			this.neutralVertexMap.get(key).createAvailableNeighborList();
 		}
 	}
+	
+	private void degreeBasedPartitioning() {
+		this.createWardenAdjacentSet();
+		boolean partitioningDone = false;
+		while (!partitioningDone) {
+
+			/* 
+			 * when there is no vertex to extend for warden gray set,
+			 * all possible separators are found. 
+			 */
+			if (this.degreeBasedWardenShore()) {
+				partitioningDone = true;
+			}
+			
+			if (this.degreeBasedOppositeShore()) {
+				if (this.randomSelectNextSeed() == -1) {
+					partitioningDone = true;
+				}
+			}
+			if (Constants.DEBUG) {
+				System.out.println("******");
+			}
+		}
+		this.classifyNodesInQueue();
+		this.filterSeparatorSet();
+		
+	}
+	
+	/**
+	 * the nodes in the priority queue might be either a separator
+	 * or a warden, so this function is to classify these nodes into
+	 * two parts
+	 */
+	private void classifyNodesInQueue() {
+		Queue<Vertex> Que = null;
+		if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+			Que = this.wardenInwardPriorityQueue;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+			Que = this.wardenOutwardPriorityQueue;
+		} else {
+			/* invalid mode */
+		}
+		while (!Que.isEmpty()) {
+			Vertex node = Que.poll();
+			boolean isSeparator = false;
+			for (Vertex neighbor: node.getAllNeighbors()) {
+				if (this.neighborCheck(neighbor)) {
+					this.separatorSet.add(node);
+					isSeparator = true;
+					break;
+				}
+			}
+			if (!isSeparator) {
+				this.wardenBlack.add(node);
+			}
+		}
+	}
+			
 	
 	/**
 	 * petition the graph and find the separators
@@ -278,9 +364,97 @@ public class GraphPartitioning {
 			if (cntToBeGray == 0) {
 				this.oppositeBlack.add(currentNode);
 				this.oppositeGray.remove(currentNode);
-				continue;
+			} else {
+				notFindNextOpposite = false;
 			}
-			notFindNextOpposite = false;
+		}
+		return false;
+	}
+	
+	/**
+	 * 
+	 * @return true if the queue is empty which means the research is over
+	 * 			and all separators are found.
+	 * 			false otherwise. 
+	 */
+	private boolean degreeBasedWardenShore() {
+		int cntNextNode;
+		boolean isSeparator, notFindNextNode = true;
+		while (notFindNextNode) {
+			/* if cannot find any vertex to extend, partitioning finishes! */
+			if (this.checkTermination(true))
+				return true;
+
+			cntNextNode = 0;
+			isSeparator = false;
+			Vertex currentNode = this.getCurrentNode(true);
+			this.wardenBlack.add(currentNode);
+			for (Vertex nextNode : currentNode.getAllNeighbors()) {
+				/* if a node in gray set is adjacent to opposite , it is a separator */
+				if (neighborCheck(nextNode)) {
+					isSeparator = true;
+				}
+				if (this.neutralVertexMap.containsKey(nextNode.getVertexID())) {
+					nextNode.setNeighborSets(this.countBlackNeighborsNumber(nextNode, true));
+					this.addToSearchingSpace(nextNode, true);
+					this.neutralVertexMap.remove(nextNode.getVertexID());
+					++cntNextNode;
+					
+					if (Constants.DEBUG) {
+						System.out.println("warden set added: " + nextNode.getVertexID());
+					}
+				}
+			}
+			
+			/*
+			 * if the current node is a separator, remove it from the black set,
+			 * also, check if the number of extendible nodes is zero,
+			 * if it is not zero, then finish this round.
+			 */ 
+			if (isSeparator) {
+				this.separatorSet.add(currentNode);
+				this.wardenBlack.remove(this.wardenBlack.size()-1);
+				if (cntNextNode != 0) {
+					notFindNextNode = false;
+				}
+			} else {
+				if (cntNextNode != 0) {
+					notFindNextNode = false;
+				}
+			}
+		}
+		return false;
+	}
+	
+	private boolean degreeBasedOppositeShore() {
+		int cntNextNode;
+		boolean notFindNextOpposite = true;
+		while (notFindNextOpposite) {
+			/* if cannot find any vertex to extend, petitioning finishes! */
+			if (this.checkTermination(false))
+				return true;
+			
+			cntNextNode = 0;
+			Vertex currentNode = this.getCurrentNode(false);			
+			this.oppositeBlack.add(currentNode);
+			for (Vertex nextNode : currentNode.getAllNeighbors()) {
+				if (this.neutralVertexMap.containsKey(nextNode.getVertexID())) {
+					nextNode.setNeighborSets(this.countBlackNeighborsNumber(nextNode, false));
+					this.addToSearchingSpace(nextNode, false);
+					this.neutralVertexMap.remove(nextNode.getVertexID());
+					++cntNextNode;
+					
+					if (Constants.DEBUG) {
+						System.out.println("opposit set added: " + nextNode.getVertexID());
+					}
+				}
+			}
+			if (cntNextNode == 0) {
+				this.oppositeBlack.add(currentNode);
+			} else {
+				notFindNextOpposite = false;
+			}
+			
 		}
 		return false;
 	}
@@ -296,24 +470,27 @@ public class GraphPartitioning {
 		for (Vertex node : this.neutralVertexMap.values()) {
 			node.createAvailableNeighborList();
 		}
-		this.DFSDFSPartitioning();
+		this.searchingPartitioning();
 		this.printResults();
 		
 		this.separatorOut.close();
 		this.wardenOut.close();
 	}
 	
-	private void DFSDFSPartitioning() {
+	/**
+	 * dfs or bfs search
+	 */
+	private void searchingPartitioning() {
 		this.createWardenAdjacentSet();
 		boolean partitioningDone = false;
 		while (!partitioningDone) {
 			/* extend a node from warden shore */
-			if (this.randomDFSExtendWardenShore()) {
+			if (this.randomSearchingExtendWardenShore()) {
 				partitioningDone = true;
 			}
 			
 			/* extend a node from opposite shore */
-			if (this.randomDFSExtendOppositeShore()) {
+			if (this.randomSearchingExtendOppositeShore()) {
 				if (this.randomSelectNextSeed() == -1) {
 					partitioningDone = true;
 				}					
@@ -334,16 +511,18 @@ public class GraphPartitioning {
 	 * @return  true   if search is  finished.
 	 * 			false  if search is not finished.
 	 */
-	private boolean randomDFSExtendWardenShore() {		
+	private boolean randomSearchingExtendWardenShore() {		
 		boolean thisRoundDone = false;		
 		while (!thisRoundDone) {
-			/* when the stack is empty, partitioning is done. */
-			if (this.wardenStack.empty()) {
+			/* when the stack/queue is empty, partitioning is done. */
+			if (this.checkTermination(true)) {
 				return true;
 			}
+			
 			boolean currentSearchingSpaceEmpty = false;
 			Vertex nextNode = null;
-			Vertex currentNode = this.wardenStack.peek();
+			Vertex currentNode = this.getCurrentNode(true);
+			
 			/* randomly select a neighbor for the next node */
 			do {
 				nextNode = currentNode.randomSelectANeighbor(this.randomNext);
@@ -359,7 +538,7 @@ public class GraphPartitioning {
 			 * node on the top of the stack 
 			 */
 			if (currentSearchingSpaceEmpty) {
-				this.wardenStack.pop();
+				this.removeUnextendableNode(true);
 				/* check if current is a separator, and put it in the right place */
 				if (separatorCheck(currentNode)) {
 					this.separatorSet.add(currentNode);
@@ -372,7 +551,7 @@ public class GraphPartitioning {
 				}
 			} else {
 				this.neutralVertexMap.remove(nextNode.getVertexID());
-				this.wardenStack.push(nextNode);
+				this.addToSearchingSpace(nextNode, true);
 				thisRoundDone = true;
 				
 				if (Constants.DEBUG) {
@@ -388,16 +567,18 @@ public class GraphPartitioning {
 	 * 					and need to randomly select a seed.
 	 * 		 	false	if successfully extend a next node,
 	 */
-	private boolean randomDFSExtendOppositeShore() {		
+	private boolean randomSearchingExtendOppositeShore() {		
 		boolean thisRoundDone = false;
 		/* if the stack is empty, needs to select next random seed */
 		while (!thisRoundDone) {
-			if (this.oppositeStack.empty()) {
+			if (this.checkTermination(false)) {
 				return true;
 			}
+			
 			boolean currentSearchingSpaceEmpty = false;
-			Vertex nextNode = null;
-			Vertex currentNode = this.oppositeStack.peek();
+			Vertex nextNode = null;			
+			Vertex currentNode = this.getCurrentNode(false);
+			
 			/* randomly select a neighbor for the next node */
 			do {
 				nextNode = currentNode.randomSelectANeighbor(this.randomNext);
@@ -408,18 +589,175 @@ public class GraphPartitioning {
 			} while (!this.neutralVertexMap.containsKey(nextNode.getVertexID()));
 
 			if (currentSearchingSpaceEmpty) {
-				this.oppositeStack.pop();
+				this.removeUnextendableNode(false);				
 				this.oppositeBlack.add(currentNode);
 			} else {
 				this.neutralVertexMap.remove(nextNode.getVertexID());
-				this.oppositeStack.push(nextNode);
+				this.addToSearchingSpace(nextNode, false);
 				thisRoundDone = true;
+				
 				if (Constants.DEBUG) {
 					System.out.println("opposite add " + nextNode.getVertexID());
 				}
 			}
 		}
 		return false;
+	}
+	
+	/**
+	 * check whether the search finishes, if the set is empty, then search is done.
+	 * @param wardenShore
+	 * @return true, if search is done; false, if not
+	 */
+	private boolean checkTermination(boolean wardenShore) {
+		if (wardenShore) {
+			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				if (this.wardenStack.empty()) return true;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				if (this.wardenQueue.isEmpty()) return true;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				if (this.wardenInwardPriorityQueue.isEmpty()) return true;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				if (this.wardenOutwardPriorityQueue.isEmpty()) return true;
+			} else {
+				/* invalid mode*/
+			}
+		} else {
+			if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				if (this.oppositeStack.empty()) return true;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				if (this.oppositeQueue.isEmpty()) return true;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				if (this.oppositeInwardPriorityQueue.isEmpty()) return true;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				if (this.oppositeOutwardPriorityQueue.isEmpty()) return true;
+			} else {
+				/* invalid mode */
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * get the node to be extended in this round based on the searching mode.
+	 * if dfs, get from the stack; if bfs, get from the queue.
+	 * @param wardenShore
+	 * @return
+	 */
+	private Vertex getCurrentNode(boolean wardenShore) {
+		if (wardenShore) {
+			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				return this.wardenStack.peek();
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				return this.wardenQueue.peek();
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				int updateCnt;
+				Vertex currentNode = this.wardenInwardPriorityQueue.poll();
+				while (currentNode.getNumberOfBlackNeighbors() != (updateCnt=this.countBlackNeighborsNumber(currentNode, true))) {
+					currentNode.setNeighborSets(updateCnt);
+					this.wardenInwardPriorityQueue.add(currentNode);
+					currentNode = this.wardenInwardPriorityQueue.poll();
+				}
+				return currentNode;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				int updateCnt;
+				Vertex currentNode = this.wardenOutwardPriorityQueue.poll();
+				while (currentNode.getNumberOfBlackNeighbors() != (updateCnt=this.countBlackNeighborsNumber(currentNode, true))) {
+					currentNode.setNeighborSets(updateCnt);
+					this.wardenOutwardPriorityQueue.add(currentNode);
+					currentNode = this.wardenOutwardPriorityQueue.poll();
+				}
+				return currentNode;
+			} else {
+				/* invalid mode */
+			}
+		} else {
+			if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				return this.oppositeStack.peek();
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				return this.oppositeQueue.peek();
+			} if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				int updateCnt;
+				Vertex currentNode = this.oppositeInwardPriorityQueue.poll();
+				while (currentNode.getNumberOfBlackNeighbors() != (updateCnt=this.countBlackNeighborsNumber(currentNode, true))) {
+					currentNode.setNeighborSets(updateCnt);
+					this.oppositeInwardPriorityQueue.add(currentNode);
+					currentNode = this.oppositeInwardPriorityQueue.poll();
+				}
+				return currentNode;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				int updateCnt;
+				Vertex currentNode = this.oppositeOutwardPriorityQueue.poll();
+				while (currentNode.getNumberOfBlackNeighbors() != (updateCnt=this.countBlackNeighborsNumber(currentNode, true))) {
+					currentNode.setNeighborSets(updateCnt);
+					this.oppositeOutwardPriorityQueue.add(currentNode);
+					currentNode = this.oppositeOutwardPriorityQueue.poll();
+				}
+				return currentNode;
+			} else {
+				/* invalid mode */
+			}
+		}
+		return null;
+	}
+	
+	/**
+	 * when a node is not extendible, ie, it cannot do dfs or bfs from its
+	 * adjacent node, then remove it from stack or queue.
+	 * @param wardenShore
+	 */
+	private void removeUnextendableNode(boolean wardenShore) {
+		if (wardenShore) {
+			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				this.wardenStack.pop();
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				this.wardenQueue.poll();
+			} else {
+				/* invalid mode */
+			}
+		} else {
+			if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				this.oppositeStack.pop();
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				this.oppositeQueue.poll();
+			} else {
+				/* invalid mode */
+			}
+		}
+	}
+	
+	/**
+	 * put the next node into corresponding search space, either the stack
+	 * or the queue based on the searching type.
+	 * @param nextNode
+	 * @param wardenShore
+	 */
+	private void addToSearchingSpace(Vertex nextNode, boolean wardenShore) {
+		if (wardenShore) {
+			if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				this.wardenStack.push(nextNode);
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				this.wardenQueue.add(nextNode);
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				this.wardenInwardPriorityQueue.add(nextNode);
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				this.wardenOutwardPriorityQueue.add(nextNode);
+			} else {
+				/* invalid mode */
+			}
+		} else {
+			if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+				this.oppositeStack.push(nextNode);
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
+				this.oppositeQueue.add(nextNode);
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+				this.oppositeInwardPriorityQueue.add(nextNode);
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+				this.oppositeOutwardPriorityQueue.add(nextNode);
+			} else {
+				/* invalid mode */
+			}
+		}
 	}
 	
 	/**
@@ -432,11 +770,30 @@ public class GraphPartitioning {
 	private boolean separatorCheck(Vertex vertex) {
 		for (Vertex neighbor : vertex.getAllNeighbors()) {
 			if (this.oppositeGray.contains(neighbor) || this.oppositeBlack.contains(neighbor) 
-					|| this.oppositeStack.contains(neighbor)) {
+					|| this.oppositeStack.contains(neighbor) || this.oppositeQueue.contains(neighbor)
+					|| this.oppositeInwardPriorityQueue.contains(neighbor)
+					|| this.oppositeOutwardPriorityQueue.contains(neighbor)) {
 				return true;
 			}
 		}
 		return false;
+	}
+	
+
+	/**
+	 * check if the given node is in the opposite shore,
+	 * or in the expanding oppoiste shore
+	 * @return
+	 */
+	private boolean neighborCheck(Vertex neighbor) {
+		
+		if (this.oppositeInwardPriorityQueue.contains(neighbor)
+				|| this.oppositeOutwardPriorityQueue.contains(neighbor)
+				|| this.oppositeBlack.contains(neighbor) || this.oppositeGray.contains(neighbor)) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 		
 	/**
@@ -473,7 +830,8 @@ public class GraphPartitioning {
 				 * then it is a real separator, and don't put into removedSeparator set
 				 */
 				if (!(this.separatorSet.contains(neighbor) || this.oppositeGray.contains(neighbor)
-						|| this.oppositeBlack.contains(neighbor) || this.oppositeStack.contains(neighbor))) {
+						|| this.oppositeBlack.contains(neighbor) || this.oppositeStack.contains(neighbor)
+						|| this.oppositeQueue.contains(neighbor) || this.oppositeInwardPriorityQueue.contains(neighbor))) {
 					toRemove = false;
 					break;
 				}				
@@ -488,11 +846,56 @@ public class GraphPartitioning {
 	}
 	
 	/**
+	 * count the number of neighbors which are in the black warden set,
+	 * which the search is based on, then update for that node and 
+	 * add into the priority queue
+	 * @param node
+	 */
+	private void priorityQueueAdd(Vertex node) {
+		int blackCnt = this.countBlackNeighborsNumber(node, true);		
+		node.setNeighborSets(blackCnt);
+		if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+			this.wardenInwardPriorityQueue.add(node);
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+			this.wardenOutwardPriorityQueue.add(node);
+		} else {
+			/* invalid mode */
+		}
+	}
+	
+	/**
+	 * count the number of neighbor nodes which are in the black warden set. 
+	 * @param Node
+	 * @return
+	 */
+	private int countBlackNeighborsNumber(Vertex node, boolean isWarden) {
+		int blackCnt = 0;
+		if (isWarden) {
+			for (Vertex neighbor : node.getAllNeighbors()) {
+				if (this.wardenBlack.contains(neighbor) || this.wardenSet.contains(neighbor)
+						|| this.separatorSet.contains(neighbor)) {
+					/* black cnt include nodes in the black set as well as the separator
+					 * because these nodes cannot be extended any more */
+					++blackCnt;
+				}
+			} 
+		} else {
+			for (Vertex neighbor : node.getAllNeighbors()) {
+				if (this.oppositeBlack.contains(neighbor) || this.separatorSet.contains(neighbor)) {
+					++blackCnt;
+				}
+			}
+		}
+		return blackCnt;
+	}
+	
+	/**
 	 * create an adjacent set for the initial warden set, using which to 
 	 * start the algorithm.
 	 * 
 	 * for both random - random search and DFS - DFS search
 	 */
+	@SuppressWarnings("unchecked")
 	private void createWardenAdjacentSet() {
 		for (Vertex wardenVertex : this.wardenSet) {
 			for (Vertex wardenNeighbor : wardenVertex.getAllNeighbors()) {
@@ -501,13 +904,16 @@ public class GraphPartitioning {
 					wardenNeighbor.createAvailableNeighborList();
 					this.wardenGray.add(wardenNeighbor);
 					this.wardenStack.push(wardenNeighbor);
+					this.wardenQueue.add(wardenNeighbor);
+					this.priorityQueueAdd(wardenNeighbor);
 					
 					this.neutralVertexMap.remove(wardenNeighbor.getVertexID());
 				}
 			}
 		}
-		/* randomize the warden stack */
+		/* initialize the initial searching space */
 		Collections.shuffle(this.wardenStack);
+		Collections.shuffle((List<Vertex>) this.wardenQueue);
 	}
 	
 	/** 
@@ -526,8 +932,13 @@ public class GraphPartitioning {
 		int randomIndex = this.randomNext.nextInt(keyArray.length);
 		int randomVertex = (Integer)keyArray[randomIndex];
 		this.oppositeGray.add(this.neutralVertexMap.get(randomVertex));
+		this.oppositeBlack.add(this.neutralVertexMap.get(randomVertex));
 		
 		this.oppositeStack.push(this.neutralVertexMap.get(randomVertex));
+		this.oppositeQueue.add(this.neutralVertexMap.get(randomVertex));
+		Vertex node = this.neutralVertexMap.get(randomVertex);
+		node.setNeighborSets(this.countBlackNeighborsNumber(node, false));
+		this.oppositeInwardPriorityQueue.add(node);
 		
 		this.neutralVertexMap.remove(randomVertex);
 		if (Constants.DEBUG) {
@@ -552,9 +963,9 @@ public class GraphPartitioning {
 		StringTokenizer pollToks;
 		int lhsASN, rhsASN, rel;
 
-		//if (Constants.DEBUG) {
+		if (Constants.DEBUG) {
 			System.out.println("as file " + Constants.AS_REL_FILE);
-		//}
+		}
 		BufferedReader fBuff = new BufferedReader(new FileReader(Constants.AS_REL_FILE));
 		while (fBuff.ready()) {
 			pollString = fBuff.readLine().trim();
@@ -642,6 +1053,7 @@ public class GraphPartitioning {
 	}
 	
 	/**
+	 * using bfs for searching the whole warden shore nodes.
 	 * 
 	 * @return	true 	if the vertex separators pass the test
 	 * 			false	if there are bugs in the code..
@@ -665,7 +1077,8 @@ public class GraphPartitioning {
 				if (visitedSet.contains(nextNode) || testQueue.contains(nextNode)
 						|| this.separatorSet.contains(nextNode)) {
 					/* do nothing*/
-				} else if (this.wardenBlack.contains(nextNode) || this.wardenSet.contains(nextNode)) {
+				} else if (this.wardenBlack.contains(nextNode) || this.wardenGray.contains(nextNode)
+						|| this.wardenSet.contains(nextNode)) {
 					testQueue.add(nextNode);
 				} else {
 					System.out.println("the algorithm is not correct!");
@@ -673,6 +1086,9 @@ public class GraphPartitioning {
 				}
 			}
 			visitedSet.add(currentNode);
+		}
+		if (Constants.DEBUG) {
+			System.out.println("Pass the test!");
 		}
 		return true;
 	}

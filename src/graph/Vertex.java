@@ -4,13 +4,17 @@ import java.util.*;
 
 
 public class Vertex extends AbstractVertex{
-        
+
+	private int blackNeighborsNumber;
+	private int oppositeNeighborsNumber;	
 	private HashSet<Edge> edgeSet;
 	private HashSet<Vertex> neighborSet;
 	private List<Vertex> availableNeighborList;
 
 	public Vertex(int idValue) {
 		super(idValue);
+		this.blackNeighborsNumber = 0;
+		this.oppositeNeighborsNumber = 0;
 		this.edgeSet = new HashSet<Edge>();
 		this.neighborSet = new HashSet<Vertex>();
         this.availableNeighborList = new ArrayList<Vertex>();
@@ -81,5 +85,19 @@ public class Vertex extends AbstractVertex{
 			idSet.add(tEdge.getOtherVertex(this).getVertexID());
 		}
 		return idSet;
+	}
+
+	public int getNeighborNumber() {
+		return this.neighborSet.size();
+	}
+	public void setNeighborSets(int blackNeighborsNumber) {
+		this.blackNeighborsNumber = blackNeighborsNumber;
+		this.oppositeNeighborsNumber = this.getNeighborNumber() - blackNeighborsNumber;
+	}
+	public int getNumberOfBlackNeighbors() {
+		return this.blackNeighborsNumber;
+	}
+	public int getNumberOfOppositeNeighbors() {
+		return this.oppositeNeighborsNumber;
 	}
 }
