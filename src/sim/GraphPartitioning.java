@@ -29,6 +29,7 @@ public class GraphPartitioning {
 	private static final String BFS_MODE = "bfs";
 	private static final String INWARD_MODE = "inward";
 	private static final String OUTWARD_MODE = "outward";
+	private static final String DEGREE_MODE = "dgr";
 	/** store initial wardens */
 	private Set<Vertex> wardenSet;
 	/** store vertexes that must be in warden side */
@@ -57,6 +58,8 @@ public class GraphPartitioning {
 	private PriorityQueue<Vertex> oppositeInwardPriorityQueue;
 	private PriorityQueue<Vertex> wardenOutwardPriorityQueue;
 	private PriorityQueue<Vertex> oppositeOutwardPriorityQueue;
+	private PriorityQueue<Vertex> wardenDegreePriorityQueue;
+	private PriorityQueue<Vertex> oppositeDegreePriorityQueue;
 	
 	
 	private String wardenMode;
@@ -81,6 +84,8 @@ public class GraphPartitioning {
 		this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardDegreeBasedCom());
 		this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
 		this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
+		this.wardenDegreePriorityQueue = new PriorityQueue<Vertex>(1, new DegreeBasedCom());
+		this.oppositeDegreePriorityQueue = new PriorityQueue<Vertex>(1, new DegreeBasedCom());
 	}
 	
 	public void multipleRuns(String wardenFile, String wardenMode, String oppositeMode, int trials) throws IOException {
@@ -108,8 +113,12 @@ public class GraphPartitioning {
 			} else if ((this.wardenMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE) || this.wardenMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE))  
 					&& (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) || this.oppositeMode.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
 				this.searchingPartitioning();
-			} else if ((this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE) || this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE))  
-					&& (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) || this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+			} else if ((this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE) 
+					|| this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)
+					|| this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE))  
+					&& (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) 
+					|| this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)
+					|| this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
 				this.degreeBasedPartitioning();
 			} else {
 				/* under construction.. */
@@ -171,8 +180,10 @@ public class GraphPartitioning {
 		
 		this.wardenInwardPriorityQueue.clear();
 		this.wardenOutwardPriorityQueue.clear();
+		this.wardenDegreePriorityQueue.clear();
 		this.oppositeInwardPriorityQueue.clear();
 		this.oppositeOutwardPriorityQueue.clear();
+		this.oppositeDegreePriorityQueue.clear();
 		for (int key : neutralVertexMap.keySet()) {
 			this.neutralVertexMap.put(key, neutralVertexMap.get(key));
 			/* available neighbor list is used for random dfs search */
@@ -218,6 +229,8 @@ public class GraphPartitioning {
 			Que = this.wardenInwardPriorityQueue;
 		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 			Que = this.wardenOutwardPriorityQueue;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+			Que = this.wardenDegreePriorityQueue;
 		} else {
 			/* invalid mode */
 		}
@@ -620,6 +633,8 @@ public class GraphPartitioning {
 				if (this.wardenInwardPriorityQueue.isEmpty()) return true;
 			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 				if (this.wardenOutwardPriorityQueue.isEmpty()) return true;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				if (this.wardenDegreePriorityQueue.isEmpty()) return true;
 			} else {
 				/* invalid mode*/
 			}
@@ -632,6 +647,8 @@ public class GraphPartitioning {
 				if (this.oppositeInwardPriorityQueue.isEmpty()) return true;
 			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 				if (this.oppositeOutwardPriorityQueue.isEmpty()) return true;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				if (this.oppositeDegreePriorityQueue.isEmpty()) return true;
 			} else {
 				/* invalid mode */
 			}
@@ -669,6 +686,8 @@ public class GraphPartitioning {
 					currentNode = this.wardenOutwardPriorityQueue.poll();
 				}
 				return currentNode;
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				return this.wardenDegreePriorityQueue.poll();
 			} else {
 				/* invalid mode */
 			}
@@ -695,6 +714,8 @@ public class GraphPartitioning {
 					currentNode = this.oppositeOutwardPriorityQueue.poll();
 				}
 				return currentNode;
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				return this.oppositeDegreePriorityQueue.poll();
 			} else {
 				/* invalid mode */
 			}
@@ -743,6 +764,8 @@ public class GraphPartitioning {
 				this.wardenInwardPriorityQueue.add(nextNode);
 			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 				this.wardenOutwardPriorityQueue.add(nextNode);
+			} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				this.wardenDegreePriorityQueue.add(nextNode);
 			} else {
 				/* invalid mode */
 			}
@@ -755,6 +778,8 @@ public class GraphPartitioning {
 				this.oppositeInwardPriorityQueue.add(nextNode);
 			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 				this.oppositeOutwardPriorityQueue.add(nextNode);
+			} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+				this.oppositeDegreePriorityQueue.add(nextNode);
 			} else {
 				/* invalid mode */
 			}
@@ -773,7 +798,8 @@ public class GraphPartitioning {
 			if (this.oppositeGray.contains(neighbor) || this.oppositeBlack.contains(neighbor) 
 					|| this.oppositeStack.contains(neighbor) || this.oppositeQueue.contains(neighbor)
 					|| this.oppositeInwardPriorityQueue.contains(neighbor)
-					|| this.oppositeOutwardPriorityQueue.contains(neighbor)) {
+					|| this.oppositeOutwardPriorityQueue.contains(neighbor)
+					|| this.oppositeDegreePriorityQueue.contains(neighbor)) {
 				return true;
 			}
 		}
@@ -788,9 +814,11 @@ public class GraphPartitioning {
 	 */
 	private boolean neighborCheck(Vertex neighbor) {
 		
-		if (this.oppositeInwardPriorityQueue.contains(neighbor)
-				|| this.oppositeOutwardPriorityQueue.contains(neighbor)
-				|| this.oppositeBlack.contains(neighbor) || this.oppositeGray.contains(neighbor)) {
+		if (this.oppositeInwardPriorityQueue.contains(neighbor) 
+				|| this.oppositeOutwardPriorityQueue.contains(neighbor) 
+				|| this.oppositeDegreePriorityQueue.contains(neighbor)
+				|| this.oppositeBlack.contains(neighbor) 
+				|| this.oppositeGray.contains(neighbor)) {
 			return true;
 		} else {
 			return false;
@@ -832,7 +860,9 @@ public class GraphPartitioning {
 				 */
 				if (!(this.separatorSet.contains(neighbor) || this.oppositeGray.contains(neighbor)
 						|| this.oppositeBlack.contains(neighbor) || this.oppositeStack.contains(neighbor)
-						|| this.oppositeQueue.contains(neighbor) || this.oppositeInwardPriorityQueue.contains(neighbor))) {
+						|| this.oppositeQueue.contains(neighbor) || this.oppositeInwardPriorityQueue.contains(neighbor)
+						|| this.oppositeDegreePriorityQueue.contains(neighbor)
+						|| this.oppositeOutwardPriorityQueue.contains(neighbor))) {
 					toRemove = false;
 					break;
 				}				
@@ -859,6 +889,8 @@ public class GraphPartitioning {
 			this.wardenInwardPriorityQueue.add(node);
 		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
 			this.wardenOutwardPriorityQueue.add(node);
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+			this.wardenDegreePriorityQueue.add(node);
 		} else {
 			/* invalid mode */
 		}
@@ -940,6 +972,8 @@ public class GraphPartitioning {
 		Vertex node = this.neutralVertexMap.get(randomVertex);
 		node.setNeighborSets(this.countBlackNeighborsNumber(node, false));
 		this.oppositeInwardPriorityQueue.add(node);
+		this.oppositeOutwardPriorityQueue.add(node);
+		this.oppositeDegreePriorityQueue.add(node);
 		
 		this.neutralVertexMap.remove(randomVertex);
 		if (Constants.DEBUG) {
