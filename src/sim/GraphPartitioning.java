@@ -27,9 +27,16 @@ public class GraphPartitioning {
 	private static final String RAND_MODE = "random";
 	private static final String DFS_MODE = "dfs";
 	private static final String BFS_MODE = "bfs";
-	private static final String INWARD_MODE = "inward";
+	private static final String OUTWARD_LARGE_MODE = "outwardlarge";
+	private static final String OUTWARD_SMALL_MODE = "outwardsmall";
 	private static final String OUTWARD_MODE = "outward";
+	private static final String INWARD_LARGE_MODE = "inwardlarge";
+	private static final String INWARD_SMALL_MODE = "inwardsmall";
+	private static final String INWARD_MODE = "inward";
+	private static final String DEGREE_LARGE_MODE = "dgrlarge";
+	private static final String DEGREE_SMALL_MODE = "dgrsmall";
 	private static final String DEGREE_MODE = "dgr";
+	
 	/** store initial wardens */
 	private Set<Vertex> wardenSet;
 	/** store vertexes that must be in warden side */
@@ -80,21 +87,69 @@ public class GraphPartitioning {
 		this.oppositeStack = new Stack<Vertex>();
 		this.wardenQueue = new LinkedList<Vertex>();
 		this.oppositeQueue = new LinkedList<Vertex>();
-		this.wardenInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardDegreeBasedCom());
-		this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardDegreeBasedCom());
-		this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
-		this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardDegreeBasedCom());
-		this.wardenDegreePriorityQueue = new PriorityQueue<Vertex>(1, new DegreeBasedCom());
-		this.oppositeDegreePriorityQueue = new PriorityQueue<Vertex>(1, new DegreeBasedCom());
+		
+		/* initialize the priority queues for an arbitrary type at the beginning,
+		 * which will be reinitialized later if it is any type of degree based search */
+		this.wardenInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardLargeDegreeBasedCom());
+		this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardLargeDegreeBasedCom());
+		this.wardenDegreePriorityQueue = new PriorityQueue<Vertex>(1, new LargeDegreeBasedCom());
+		this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardLargeDegreeBasedCom());
+		this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardLargeDegreeBasedCom());
+		this.oppositeDegreePriorityQueue = new PriorityQueue<Vertex>(1, new LargeDegreeBasedCom());
+	}
+	
+	/**
+	 * six types totally, divided by the type of priority, increasing or decreasing;
+	 * and the type of degree based search, inward, outward or total.
+	 */
+	private void initializePriorityQueue() {
+		if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_LARGE_MODE)) {
+			this.wardenInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardLargeDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.INWARD_MODE;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_SMALL_MODE)) {
+			this.wardenInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardSmallDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.INWARD_MODE;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_LARGE_MODE)) {
+			this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardLargeDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.OUTWARD_MODE;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_SMALL_MODE)) {
+			this.wardenOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardSmallDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.OUTWARD_MODE;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_LARGE_MODE)) {
+			this.wardenDegreePriorityQueue = new PriorityQueue<Vertex>(1, new LargeDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.DEGREE_MODE;
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_SMALL_MODE)) {
+			this.wardenDegreePriorityQueue = new PriorityQueue<Vertex>(1, new SmallDegreeBasedCom());
+			this.wardenMode = GraphPartitioning.DEGREE_MODE;
+		} else ;
+		
+		if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_LARGE_MODE)) {
+			this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardLargeDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.INWARD_MODE;
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_SMALL_MODE)) {
+			this.oppositeInwardPriorityQueue = new PriorityQueue<Vertex>(1, new InwardSmallDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.INWARD_MODE;
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_LARGE_MODE)) {
+			this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardLargeDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.OUTWARD_MODE;
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_SMALL_MODE)) {
+			this.oppositeOutwardPriorityQueue = new PriorityQueue<Vertex>(1, new OutwardSmallDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.OUTWARD_MODE;
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_LARGE_MODE)) {
+			this.oppositeDegreePriorityQueue = new PriorityQueue<Vertex>(1, new LargeDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.DEGREE_MODE;
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_SMALL_MODE)) {
+			this.oppositeDegreePriorityQueue = new PriorityQueue<Vertex>(1, new SmallDegreeBasedCom());
+			this.oppositeMode = GraphPartitioning.DEGREE_MODE;
+		} else ;
 	}
 	
 	public void multipleRuns(String wardenFile, String wardenMode, String oppositeMode, int trials) throws IOException {
 		this.wardenMode = wardenMode;
 		this.oppositeMode = oppositeMode;
-		//this.separatorOut = new BufferedWriter(new FileWriter(Constants.SEPARATOR_OUTPUT_FILE + "-" + wardenFile));
-		//this.wardenOut = new BufferedWriter(new FileWriter(Constants.WARDEN_OUTPUT_FILE + "-" + wardenFile));
-		this.separatorOut = new BufferedWriter(new FileWriter("multiSeparatorCnt.txt"));
-		this.wardenOut = new BufferedWriter(new FileWriter("multiWardenCnt.txt"));
+		this.initializePriorityQueue();
+		this.separatorOut = new BufferedWriter(new FileWriter(wardenMode + "_" + oppositeMode + "_SeparatorCnt.txt"));
+		this.wardenOut = new BufferedWriter(new FileWriter(wardenMode + "_" + oppositeMode + "_WardenCnt.txt"));
 		
 		this.generateGraph(wardenFile);
 		HashMap<Integer, Vertex> tempMap = new HashMap<Integer, Vertex>();
@@ -178,6 +233,20 @@ public class GraphPartitioning {
 		this.oppositeStack.clear();
 		this.oppositeQueue.clear();
 		
+		/*if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+			this.wardenInwardPriorityQueue.clear();
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+			this.wardenOutwardPriorityQueue.clear();
+		} else if (this.wardenMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+			this.wardenDegreePriorityQueue.clear();
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.INWARD_MODE)) {
+			this.oppositeInwardPriorityQueue.clear();
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.OUTWARD_MODE)) {
+			this.oppositeOutwardPriorityQueue.clear();
+		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
+			this.oppositeDegreePriorityQueue.clear();
+		} else ;*/
+		
 		this.wardenInwardPriorityQueue.clear();
 		this.wardenOutwardPriorityQueue.clear();
 		this.wardenDegreePriorityQueue.clear();
@@ -197,7 +266,7 @@ public class GraphPartitioning {
 		while (!partitioningDone) {
 
 			/* 
-			 * when there is no vertex to extend for warden gray set,
+			 * when there is no vertex to extend for opposite gray set,
 			 * all possible separators are found. 
 			 */
 			if (this.degreeBasedWardenShore()) {
