@@ -81,8 +81,8 @@ public class OptimizeSeparator {
 		this.createFringeSets();
 		
 		System.out.println("!!!" + this.wardenFringe.size() + ", " + this.oppositeFringe.size());
-		if (true)
-			return;
+		//if (true)
+		//	return;
 
 		System.out.println("!!!" + this.wardenShore.size() + ", " + this.oppositeShore.size() + ", " + this.separatorSet.size());
 		for (int i = 0; i < this.threshold && !done; ++i) {
@@ -126,8 +126,8 @@ public class OptimizeSeparator {
 		
 		int cntN = 0;
 		System.out.println("total neighbor amount: " + currentNode.getNeighborNumber());
-		if (true)
-			return false;
+		//if (true)
+		//	return false;
 		for (Vertex neighbor: currentNode.getAllNeighbors()) {
 			//System.out.println("neighbor id : " + neighbor.getVertexID());
 			System.out.println("current warden neighbor Cnt: " + (++cntN));
