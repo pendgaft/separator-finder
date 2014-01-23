@@ -5,16 +5,22 @@ import java.util.*;
 
 public class Vertex extends AbstractVertex{
 
+	private boolean visited;
+	private boolean adjacentToWarden; 
 	private int blackNeighborsNumber;
-	private int oppositeNeighborsNumber;	
+	private int oppositeNeighborsNumber;
+	private int separatorNeighborNumber;
 	private HashSet<Edge> edgeSet;
 	private HashSet<Vertex> neighborSet;
 	private List<Vertex> availableNeighborList;
 
 	public Vertex(int idValue) {
 		super(idValue);
+		this.visited = false;
+		this.adjacentToWarden = false;
 		this.blackNeighborsNumber = 0;
 		this.oppositeNeighborsNumber = 0;
+		this.separatorNeighborNumber = 0;
 		this.edgeSet = new HashSet<Edge>();
 		this.neighborSet = new HashSet<Vertex>();
         this.availableNeighborList = new ArrayList<Vertex>();
@@ -99,5 +105,34 @@ public class Vertex extends AbstractVertex{
 	}
 	public int getNumberOfOppositeNeighbors() {
 		return this.oppositeNeighborsNumber;
+	}
+
+	public void setNumberOfSeparatorNeighbors(int separatorCnt) {
+		this.separatorNeighborNumber = separatorCnt;
+	}
+	public void increaseNumberOfSeparatorNeighbors() {
+		++this.separatorNeighborNumber;
+	}
+	public void decreaseNumberOfSeparatorNeighbors() {
+		--this.separatorNeighborNumber;
+	}
+	public int getNumberOfSeparatorNeighbors() {
+		return this.separatorNeighborNumber;
+	}
+	
+	public boolean isVisited() {
+		if (this.visited)
+			return true;
+		return false;
+	}
+	public void setVisited() {
+		this.visited = true;
+	}
+	
+	public boolean isAdjacentToWarden() {
+		return this.adjacentToWarden;
+	}
+	public void setAdjacentToWarden() {
+		this.adjacentToWarden = true;
 	}
 }
