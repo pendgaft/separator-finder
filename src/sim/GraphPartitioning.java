@@ -97,6 +97,7 @@ public class GraphPartitioning {
 		this.validSeparators = new HashSet<Vertex>();
 		this.validWardenShore = new HashSet<Vertex>();
 
+		/* set fixed random.. */
 		this.randomNext = new Random();
 
 		this.wardenStack = new Stack<Vertex>();
@@ -1331,7 +1332,7 @@ public class GraphPartitioning {
 			}
 		}
 		if (!Constants.SEP_DEBUG) {
-			System.out.println("Test Passed!!!");
+			System.out.println("Test Passed in Creating Separators!!!");
 		}
 		return true;
 	}
@@ -1419,17 +1420,19 @@ public class GraphPartitioning {
 	 * 
 	 * @return
 	 */
-	private Set<Vertex> getRedundantWardenShore() {
+	public Set<Vertex> getRedundantWardenShore() {
 		Set<Vertex> wardenShore = new HashSet<Vertex>();
 		wardenShore.addAll(this.wardenBlack);
 		wardenShore.addAll(this.wardenSet);
 		/* for random case */
 		wardenShore.addAll(this.wardenGray);
+		//wardenShore.removeAll(this.separatorSet);
 		return wardenShore;
 	}
 
 	public Set<Vertex> getSeparators() {
-		return this.validSeparators;
+		//return this.validSeparators;
+		return this.separatorSet;
 	}
 
 	public int getSeparatorSize() {
@@ -1439,8 +1442,10 @@ public class GraphPartitioning {
 	public Set<Vertex> getOppositeShore() {
 		Set<Vertex> oppositeShore = new HashSet<Vertex>(
 				this.neutralVertexCopy.values());
-		oppositeShore.removeAll(this.validSeparators);
-		oppositeShore.removeAll(this.validWardenShore);
+		//oppositeShore.removeAll(this.validSeparators);
+		oppositeShore.removeAll(this.separatorSet);
+		//oppositeShore.removeAll(this.validWardenShore);
+		oppositeShore.removeAll(this.getRedundantWardenShore());
 
 		return oppositeShore;
 	}
