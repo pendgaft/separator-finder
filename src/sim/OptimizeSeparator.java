@@ -63,6 +63,8 @@ public class OptimizeSeparator {
 		
 		if (this.testResults()) {
 			System.out.println("Test Passed!!!");
+		} else {
+			System.out.println("Test Failed!!!");
 		}
 		
 		this.printResults();
@@ -89,12 +91,12 @@ public class OptimizeSeparator {
 			
 			System.out.println("Fringes after warden swap: warden " + this.wardenFringe.size() + ", opp " + this.oppositeFringe.size() + "\n");
 			
-			if (!this.testResults()) {
+			/*if (!this.testResults()) {
 				System.out.println("Test Failed during swapping warden nodes!!! in Run " + (i+1) + ".");
 				//return;
 			} else {
 				System.out.println("Test Passed in swap one wardne node!!!");
-			}
+			}*/
 			
 			
 			if (Constants.OPT_DEBUG) {
@@ -114,7 +116,7 @@ public class OptimizeSeparator {
 				System.out.println("****");
 			}
 			
-			if (!this.testResults()) {
+			/*if (!this.testResults()) {
 				System.out.println("Test Failed during swapping opp nodes!!! in Run " + (i+1) + ".\n\n");
 				//return;
 			} else {
@@ -122,7 +124,7 @@ public class OptimizeSeparator {
 			}
 			if (done) {
 				System.out.println("finish!!!");
-			}
+			}*/
 		}
 	}
 	
@@ -140,6 +142,7 @@ public class OptimizeSeparator {
 		/* when it only has one warden neighbor, it is not worth to swap anymore */
 		if (currentNode.getNumberOfSeparatorNeighbors() == 1) {
 			System.out.println("Stops at warden shore is not worth of swapping...........");
+			this.wardenFringe.add(currentNode);
 			return true;
 		}
 
@@ -147,29 +150,32 @@ public class OptimizeSeparator {
 			return false;
 		}
 		this.separatorSet.add(currentNode);
+		int part = 0;
 		for (Vertex neighbor: currentNode.getAllNeighbors()) {
 			
 			if (this.separatorSet.contains(neighbor)) {
 				/* only put the previous separators which are adjacent to one warden part nodes
 				 * into the opposite fringe set, others remain separators */
-				if (this.getWardenNeighborNumber(neighbor) == 1) {
+				if (this.getWardenNeighborNumber(neighbor) == 0) {
 					this.putIntoOppositeFringeWithoutConditions(neighbor);
 					this.separatorSet.remove(neighbor);
 				}
+				part = 1;
 			} else if (this.wardenShore.contains(neighbor)) {
 				
 				/* wardens cannot be swapped to separators.. */
 				if (!this.wardenSet.contains(neighbor)) {
-					this.putIntoWardenFringeWithoutConditions(neighbor);
 					this.wardenShore.remove(neighbor);
+					this.putIntoWardenFringeWithoutConditions(neighbor);
 				}
-
+				part = 2;
 			} else if (this.wardenFringe.contains(neighbor)) {
 				/* need to update its warden neighbor.. too costly in this way??	 */
 				this.wardenFringe.remove(neighbor);
 				this.putIntoWardenFringeWithoutConditions(neighbor);
-				
+				part = 3;
 			} else {
+				part = 4;
 				if (this.oppositeFringe.contains(neighbor))
 					System.out.println("opposite fringe contain it!");
 				else if (this.oppositeShore.contains(neighbor))
@@ -178,6 +184,9 @@ public class OptimizeSeparator {
 					System.out.println("what else can contain..");
 				System.out.println("Not possible.. Something's wrong in opp swapping!!");
 				//return true;
+			}
+			if (!this.testResults()) {
+				System.out.println("test case fails in warden shore.. part " + part);
 			}
 		}		
 		return false;
@@ -229,25 +238,27 @@ public class OptimizeSeparator {
 			System.out.println("Stops at opposite shore not worth of swapping.........");
 			return true;
 		}
+		int part = 0;
 		this.separatorSet.add(currentNode);
-		for (Vertex neighbor: currentNode.getAllNeighbors()) {			
+		for (Vertex neighbor: currentNode.getAllNeighbors()) {
 			
 			if (this.separatorSet.contains(neighbor)) {
 				//this.putIntoOppositeFringeWithoutConditions(neighbor);
-				if (this.getOppositeNeighborNumber(neighbor) == 1) {
+				if (this.getOppositeNeighborNumber(neighbor) == 0) {
 					this.putIntoWardenFringeWithoutConditions(neighbor);
 					this.separatorSet.remove(neighbor);
 				}
-				
+				part = 1;
 			} else if (this.oppositeShore.contains(neighbor)) {
-					this.putIntoWardenFringeWithoutConditions(neighbor);
-					this.oppositeShore.remove(neighbor);
-				
+				this.oppositeShore.remove(neighbor);
+				this.putIntoOppositeFringeWithoutConditions(neighbor);
+				part = 2;
 			} else if (this.oppositeFringe.contains(neighbor)) {
 				this.oppositeFringe.remove(neighbor);
 				this.putIntoOppositeFringeWithoutConditions(neighbor);
-				
+				part = 3;
 			} else {
+				part = 4;
 				if (this.wardenFringe.contains(neighbor))
 					System.out.println("wardne fringe contain it!");
 				else if (this.wardenShore.contains(neighbor))
@@ -256,6 +267,9 @@ public class OptimizeSeparator {
 					System.out.println("what else can contain..");
 				System.out.println("Not possible.. Something's wrong in opp swapping!!");
 				//return true;
+			}
+			if (!this.testResults()) {
+				System.out.println("test case fails in opposite shore.. part " + part);
 			}
 		}
 		return false;
@@ -346,33 +360,6 @@ public class OptimizeSeparator {
 		return separatorCnt;
 	}
 	
-	
-	
-	/**
-	 * update the number of neighbor separators of the given node,
-	 * take it out of warden shore and put into warden fringe. 
-	 * @param node
-	 */
-	private void putIntoWardenFringe_Old(Vertex node) {
-		
-		/* only count the separators that have one adjacent warden shore node */
-		int separatorCnt = this.updateSeparatorCntForWarden_OneToMany(node);
-		/* if the node is not adjacent to any separator, stays where it was */
-		if (separatorCnt <= 1) {
-			return;
-		}
-		//System.out.println("%node to be in warden fringe: " + node.getVertexID());
-		if (this.wardenFringe.contains(node)) { /* works??? or use hashMap */
-			this.wardenFringe.remove(node);
-		}
-		this.wardenFringe.add(node);
-		this.wardenShore.remove(node);
-			
-		for (Vertex neighbor: node.getAllNeighbors()) {
-			this.updateSeparatorCntForWarden_OneToMany(neighbor);
-		}
-	}
-	
 	/**
 	 * count the number of separators that have only one adjacent warden shore node
 	 * of a given node, if the number is greater then 2, or say worth swapping,
@@ -390,31 +377,9 @@ public class OptimizeSeparator {
 	}
 	
 	private void putIntoWardenFringeWithoutConditions(Vertex node) {
-		this.updateSeparatorCntForWarden_OneToMany(node);
 		this.wardenFringe.add(node);
-	}
-	
-	/**
-	 * update the number of neighbor separators of the given node,
-	 * take it out of opposite shore and put into opposite fringe. 
-	 * @param node
-	 */
-	private void putIntoOppositeFringe_Old(Vertex node) {
-		int separatorCnt = this.updateSeparatorCntForWarden_OneToMany(node);
-		/* if the node is not adjacent to any separator, stays where it was */
-		if (separatorCnt <= 1) {
-			return;
-		}
-		//System.out.println("%node to be in opposite fringe: " + node.getVertexID());
-		if (this.oppositeFringe.contains(node)) {
-			this.oppositeFringe.remove(node);	
-		}
-		this.oppositeFringe.add(node);
-		this.oppositeShore.remove(node);
-		
-		for (Vertex neighbor: node.getAllNeighbors()) {
-			this.updateSeparatorCntForWarden_OneToMany(neighbor);
-		}
+		this.updateSeparatorCntForWarden_OneToMany(node);
+		//this.wardenFringe.add(node);
 	}
 	
 	/**
@@ -435,8 +400,9 @@ public class OptimizeSeparator {
 	}
 	
 	private void putIntoOppositeFringeWithoutConditions(Vertex node) {
-		this.updateSeparatorCntForOpposite_OneToMany(node);
 		this.oppositeFringe.add(node);
+		this.updateSeparatorCntForOpposite_OneToMany(node);
+		//this.oppositeFringe.add(node);
 		//this.oppositeShore.remove(node); // not na
 	}
 	
@@ -524,12 +490,12 @@ public class OptimizeSeparator {
 			}
 		}
 		if (cnt != 0) {
-			System.out.println(cnt + " illegel neighbors.. Test Failed!");
+			//System.out.println(cnt + " illegel neighbors.. Test Failed!");
 			return false;
 		}
 
 		if (Constants.OPT_DEBUG) {
-			System.out.println("Pass the test in Optimizing!");
+			//System.out.println("Pass the test in Optimizing!");
 		}
 		return true;
 	}
