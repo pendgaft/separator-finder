@@ -1332,7 +1332,7 @@ public class GraphPartitioning {
 			}
 		}
 		if (!Constants.SEP_DEBUG) {
-			System.out.println("Test Passed in Creating Separators!!!");
+			System.out.println("Test Passed in Creating Separators..");
 		}
 		return true;
 	}

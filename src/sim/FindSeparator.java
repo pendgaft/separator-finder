@@ -41,12 +41,12 @@ public class FindSeparator {
 				return;
 			}
 			if (!partitionEngine.singleRun(args[1], args[2], args[3])) {
-				System.out.println("Wrong separators!!!");
+				System.out.println("Wrong separators...");
 				return;
 			}
 			/* pass separators, warden shore, opposite shore, warden set, and a threshold as parameters. */
 			OptimizeSeparator optimizeEngine = new OptimizeSeparator(partitionEngine.getSeparators(), 
-					partitionEngine.getWardenShore(), partitionEngine.getOppositeShore(), 
+					partitionEngine.getRedundantWardenShore(), partitionEngine.getOppositeShore(), 
 					partitionEngine.getWardens(), Integer.valueOf(args[4]));
 			optimizeEngine.simulate();
 			
@@ -54,8 +54,9 @@ public class FindSeparator {
 			/* mode under construction */
 			System.out.println("Mode: <sep>, <opt>");
 		}
+		
 		endTime = System.currentTimeMillis();
-		System.out.println("\nAll separators found, this took: " + (endTime - startTime) / 1000 + " seconds, "
+		System.out.println("\nRunning Separator Oppotimization Took: " + (endTime - startTime) / 1000 + " seconds, "
 				+ (endTime - startTime) / 60000 + " minutes.");
 	}
 	
