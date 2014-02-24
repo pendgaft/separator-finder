@@ -27,11 +27,11 @@ public class GraphPartitioning {
 	private static final String RAND_MODE = "random";
 	private static final String DFS_MODE = "dfs";
 	private static final String BFS_MODE = "bfs";
-	private static final String OUTWARD_LARGE_MODE = "outwardlarge";
-	private static final String OUTWARD_SMALL_MODE = "outwardsmall";
+	private static final String OUTWARD_LARGE_MODE = "outlarge";
+	private static final String OUTWARD_SMALL_MODE = "outsmall";
 	private static final String OUTWARD_MODE = "outward";
-	private static final String INWARD_LARGE_MODE = "inwardlarge";
-	private static final String INWARD_SMALL_MODE = "inwardsmall";
+	private static final String INWARD_LARGE_MODE = "inlarge";
+	private static final String INWARD_SMALL_MODE = "insmall";
 	private static final String INWARD_MODE = "inward";
 	private static final String DEGREE_LARGE_MODE = "dgrlarge";
 	private static final String DEGREE_SMALL_MODE = "dgrsmall";
@@ -251,7 +251,7 @@ public class GraphPartitioning {
 			}
 			
 			this.removeRedundantComponents();
-			this.printResults();
+			this.printResults(false);
 			if (Constants.TEST) {
 				if (!this.passSeparatorTest()) {
 					return;
@@ -267,10 +267,6 @@ public class GraphPartitioning {
 
 		this.wardenMode = wardenMode;
 		this.oppositeMode = oppositeMode;
-		this.separatorOut = new BufferedWriter(new FileWriter(wardenMode + "_"
-				+ oppositeMode + "_SeparatorCnt.txt"));
-		this.wardenOut = new BufferedWriter(new FileWriter(wardenMode + "_"
-				+ oppositeMode + "_WardenCnt.txt"));
 		this.initializePriorityQueue();
 		this.generateGraph(wardenFile);
 
@@ -280,8 +276,13 @@ public class GraphPartitioning {
 				&& this.wardenMode
 						.equalsIgnoreCase(GraphPartitioning.RAND_MODE)) {
 			this.randomRandomPartitioning();
-		} else if (this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)
-				&& this.oppositeMode.equalsIgnoreCase(GraphPartitioning.DFS_MODE)) {
+		} else if ((this.wardenMode
+				.equalsIgnoreCase(GraphPartitioning.DFS_MODE) || this.wardenMode
+				.equalsIgnoreCase(GraphPartitioning.BFS_MODE))
+				&& (this.oppositeMode
+						.equalsIgnoreCase(GraphPartitioning.DFS_MODE))
+				|| this.oppositeMode
+						.equalsIgnoreCase(GraphPartitioning.BFS_MODE)) {
 			for (Vertex node : this.neutralVertexMap.values()) {
 				node.createAvailableNeighborList();
 			}
@@ -301,12 +302,12 @@ public class GraphPartitioning {
 		
 		this.removeRedundantComponents();
 		if (Constants.TEST) {
-			if (!this.passSeparatorTest())
+			if (!this.passSeparatorTest()) {
+				System.out.println("test failed...");
 				return false;
+			}
 		}
-		this.printResults();
-		this.separatorOut.close();
-		this.wardenOut.close();
+		this.printResults(true);
 		
 		return true;
 	}
@@ -1060,44 +1061,6 @@ public class GraphPartitioning {
 	}
 
 	/**
-	 * remove the separator that only connects to other separators and opposite
-	 * vertexes.
-	 * 
-	 * for random - random search
-	 */
-	// private void filterSeparatorSet() {
-	// Set<Vertex> removedSeparator = new HashSet<Vertex>();
-	// for (Vertex vertex : this.separatorSet) {
-	// boolean toRemove = true;
-	// for (Vertex neighbor : vertex.getAllNeighbors()) {
-	// /*
-	// * if connect to a vertex that is not in separator set or opposite
-	// (extending) set
-	// * then it is a real separator, and don't put into removedSeparator set
-	// */
-	// if (!(this.separatorSet.contains(neighbor) ||
-	// this.oppositeGray.contains(neighbor)
-	// || this.oppositeBlack.contains(neighbor) ||
-	// this.oppositeStack.contains(neighbor)
-	// || this.oppositeQueue.contains(neighbor) ||
-	// this.oppositeInwardPriorityQueue.contains(neighbor)
-	// || this.oppositeDegreePriorityQueue.contains(neighbor)
-	// || this.oppositeOutwardPriorityQueue.contains(neighbor))) {
-	// toRemove = false;
-	// break;
-	// }
-	// }
-	// if (toRemove) {
-	// removedSeparator.add(vertex);
-	// }
-	// }
-	// if (!removedSeparator.isEmpty()) {
-	// this.separatorSet.removeAll(removedSeparator);
-	// this.filteredSeparators.addAll(removedSeparator);
-	// }
-	// }
-
-	/**
 	 * count the number of neighbors which are in the black warden set, which
 	 * the search is based on, then update for that node and add into the
 	 * priority queue
@@ -1116,7 +1079,7 @@ public class GraphPartitioning {
 				.equalsIgnoreCase(GraphPartitioning.DEGREE_MODE)) {
 			this.wardenDegreePriorityQueue.add(node);
 		} else {
-			/* invalid mode */
+			/* invalid mode, bfs and dfs have been added. */
 		}
 	}
 
@@ -1277,8 +1240,8 @@ public class GraphPartitioning {
 					this.neutralVertexMap.get(lhsASN));
 		}
 		fBuff.close();
-		if (Constants.SEP_DEBUG) {
-			System.out.println(this.neutralVertexMap.size());
+		if (!Constants.SEP_DEBUG) {
+			System.out.println("Total amount of nodes: " + this.neutralVertexMap.size());
 		}
 		/*
 		 * read the warden AS file, add wardens into warden set
@@ -1426,12 +1389,11 @@ public class GraphPartitioning {
 		wardenShore.addAll(this.wardenSet);
 		/* for random case */
 		wardenShore.addAll(this.wardenGray);
-		//wardenShore.removeAll(this.separatorSet);
+		wardenShore.removeAll(this.separatorSet);
 		return wardenShore;
 	}
 
 	public Set<Vertex> getSeparators() {
-		//return this.validSeparators;
 		return this.separatorSet;
 	}
 
@@ -1442,26 +1404,21 @@ public class GraphPartitioning {
 	public Set<Vertex> getOppositeShore() {
 		Set<Vertex> oppositeShore = new HashSet<Vertex>(
 				this.neutralVertexCopy.values());
-		//oppositeShore.removeAll(this.validSeparators);
 		oppositeShore.removeAll(this.separatorSet);
-		//oppositeShore.removeAll(this.validWardenShore);
 		oppositeShore.removeAll(this.getRedundantWardenShore());
 
 		return oppositeShore;
 	}
 
-	private void printResults() throws IOException {
+	private void printResults(boolean singleRun) throws IOException {
 
-		this.separatorOut.write(this.validSeparators.size() + "\n");
-		this.wardenOut.write(this.validWardenShore.size() + "\n");
+		if (!singleRun) {
+			this.separatorOut.write(this.validSeparators.size() + "\n");
+			this.wardenOut.write(this.validWardenShore.size() + "\n");
+		}
 		if (Constants.SEP_DEBUG) {
 			System.out.println("separator size: " + this.validSeparators.size()
 					+ ", warden size: " + this.validWardenShore.size());
-			/*
-			 * System.out.println("separator size: " + this.separatorSet.size()
-			 * + ", warden size: " +
-			 * (this.wardenSet.size()+this.wardenBlack.size()));
-			 */
 		}
 		if (Constants.SEP_DEBUG) {
 			System.out.println("\n###Separators:");

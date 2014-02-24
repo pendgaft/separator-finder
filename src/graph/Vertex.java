@@ -5,8 +5,9 @@ import java.util.*;
 
 public class Vertex extends AbstractVertex{
 
-	private boolean visited;
-	private boolean adjacentToWarden; 
+	private boolean visited; 
+	private boolean inWardenFringe;
+	private boolean inOppositeFringe;
 	private int blackNeighborsNumber;
 	private int oppositeNeighborsNumber;
 	private int separatorNeighborNumber;
@@ -17,7 +18,8 @@ public class Vertex extends AbstractVertex{
 	public Vertex(int idValue) {
 		super(idValue);
 		this.visited = false;
-		this.adjacentToWarden = false;
+		this.inWardenFringe = false;
+		this.inOppositeFringe = false;
 		this.blackNeighborsNumber = 0;
 		this.oppositeNeighborsNumber = 0;
 		this.separatorNeighborNumber = 0;
@@ -129,10 +131,26 @@ public class Vertex extends AbstractVertex{
 		this.visited = true;
 	}
 	
-	public boolean isAdjacentToWarden() {
-		return this.adjacentToWarden;
+	public void setInWardenFringe() {
+		this.inWardenFringe = true;
+	}	
+	public void unsetInWardenFringe() {
+		this.inWardenFringe = false;
 	}
-	public void setAdjacentToWarden() {
-		this.adjacentToWarden = true;
+	public boolean isInWardenFringe() {
+		return this.inWardenFringe;
+	}
+	public void setInOppositeFringe() {
+		this.inOppositeFringe = true;
+	}	
+	public void unsetInOppositeFringe() {
+		this.inOppositeFringe = false;
+	}
+	public boolean isInOppositeFringe() {
+		return this.inOppositeFringe;
+	}
+	public void unsetFringesFlag() {
+		this.inWardenFringe = false;
+		this.inOppositeFringe = false;
 	}
 }
